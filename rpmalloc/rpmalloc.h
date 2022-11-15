@@ -59,7 +59,9 @@ extern "C" {
 #endif
 
 //Max total allocatable pages
+#ifndef RPMALLOC_MAX_PAGES
 #define RPMALLOC_MAX_PAGES      0
+#endif
 
 //! Flag to rpaligned_realloc to not preserve content in reallocation
 #define RPMALLOC_NO_PRESERVE    1

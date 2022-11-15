@@ -896,7 +896,7 @@ _rpmalloc_mmap(size_t size, size_t* offset) {
 	void* address = _memory_config.memory_map(size, offset);
 	if (EXPECTED(address != 0)) {
 #if RPMALLOC_MAX_PAGES && !ENABLE_STATISTICS
-        atomic_add32(&_mapped_pages, (release >> _memory_page_size_shift));    
+        atomic_add32(&_mapped_pages, (size >> _memory_page_size_shift));    
 #else
         _rpmalloc_stat_add_peak(&_mapped_pages, (size >> _memory_page_size_shift), _mapped_pages_peak);
 #endif

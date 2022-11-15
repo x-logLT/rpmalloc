@@ -58,6 +58,9 @@ extern "C" {
 #define RPMALLOC_FIRST_CLASS_HEAPS 0
 #endif
 
+//Max total allocatable pages
+#define RPMALLOC_MAX_PAGES      0
+
 //! Flag to rpaligned_realloc to not preserve content in reallocation
 #define RPMALLOC_NO_PRESERVE    1
 //! Flag to rpaligned_realloc to fail and return null pointer if grow cannot be done in-place,

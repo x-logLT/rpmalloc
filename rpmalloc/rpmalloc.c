@@ -440,6 +440,7 @@ struct span_use_t {
 	//! Number of raw memory map calls
 	atomic32_t spans_map_calls;
 #endif
+
 };
 typedef struct span_use_t span_use_t;
 #endif
@@ -700,8 +701,6 @@ static atomic64_t _allocation_counter;
 static atomic64_t _deallocation_counter;
 //! Active heap count
 static atomic32_t _memory_active_heaps;
-//! Number of currently mapped memory pages
-static atomic32_t _mapped_pages;
 //! Peak number of concurrently mapped memory pages
 static int32_t _mapped_pages_peak;
 //! Number of mapped master spans
@@ -718,6 +717,10 @@ static atomic32_t _mapped_pages_os;
 static atomic32_t _huge_pages_current;
 //! Peak number of currently allocated pages in huge allocations
 static int32_t _huge_pages_peak;
+#endif
+#if ENABLE_STATISTICS || RPMALLOC_MAX_PAGES
+//! Number of currently mapped memory pages
+static atomic32_t _mapped_pages;
 #endif
 
 ////////////
@@ -887,9 +890,16 @@ static void*
 _rpmalloc_mmap(size_t size, size_t* offset) {
 	rpmalloc_assert(!(size % _memory_page_size), "Invalid mmap size");
 	rpmalloc_assert(size >= _memory_page_size, "Invalid mmap size");
+#if RPMALLOC_MAX_PAGES
+    if(_mapped_pages >= RPMALLOC_MAX_PAGES) return NULL;
+#endif
 	void* address = _memory_config.memory_map(size, offset);
 	if (EXPECTED(address != 0)) {
-		_rpmalloc_stat_add_peak(&_mapped_pages, (size >> _memory_page_size_shift), _mapped_pages_peak);
+#if RPMALLOC_MAX_PAGES && !ENABLE_STATISTICS
+        atomic_add32(&_mapped_pages, (release >> _memory_page_size_shift));    
+#else
+        _rpmalloc_stat_add_peak(&_mapped_pages, (size >> _memory_page_size_shift), _mapped_pages_peak);
+#endif
 		_rpmalloc_stat_add(&_mapped_total, (size >> _memory_page_size_shift));
 	}
 	return address;
@@ -906,7 +916,11 @@ _rpmalloc_unmap(void* address, size_t size, size_t offset, size_t release) {
 	rpmalloc_assert(!release || (release >= _memory_page_size), "Invalid unmap size");
 	if (release) {
 		rpmalloc_assert(!(release % _memory_page_size), "Invalid unmap size");
-		_rpmalloc_stat_sub(&_mapped_pages, (release >> _memory_page_size_shift));
+#if RPMALLOC_MAX_PAGES
+        atomic_add32(&_mapped_pages, -(release >> _memory_page_size_shift));    
+#else
+        _rpmalloc_stat_sub(&_mapped_pages, (release >> _memory_page_size_shift));
+#endif
 		_rpmalloc_stat_add(&_unmapped_total, (release >> _memory_page_size_shift));
 	}
 	_memory_config.memory_unmap(address, size, offset, release);
@@ -2935,7 +2949,6 @@ rpmalloc_initialize_config(const rpmalloc_config_t* config) {
 #endif
 #if ENABLE_STATISTICS
 	atomic_store32(&_memory_active_heaps, 0);
-	atomic_store32(&_mapped_pages, 0);
 	_mapped_pages_peak = 0;
 	atomic_store32(&_master_spans, 0);
 	atomic_store32(&_mapped_total, 0);
@@ -2944,6 +2957,10 @@ rpmalloc_initialize_config(const rpmalloc_config_t* config) {
 	atomic_store32(&_huge_pages_current, 0);
 	_huge_pages_peak = 0;
 #endif
+#if ENABLE_STATISTICS || RPMALLOC_MAX_PAGES
+    atomic_store32(&_mapped_pages, 0);
+#endif
+
 	memset(_memory_heaps, 0, sizeof(_memory_heaps));
 	atomic_store32_release(&_memory_global_lock, 0);
 
